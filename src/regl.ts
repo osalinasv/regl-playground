@@ -9,8 +9,14 @@ export interface ReglContext extends REGL.DefaultContext {
 
 export function createRegl(selector: string) {
   const canvas = document.querySelector<HTMLCanvasElement>(selector)!
+  const context = canvas.getContext('webgl2', {
+    alpha: true,
+    antialias: true,
+  })!
+
   const regl = REGL({
-    canvas,
+    canvas: canvas,
+    gl: context,
     onDone(_, regl) {
       if (regl) handleResize(regl, canvas)
     },
