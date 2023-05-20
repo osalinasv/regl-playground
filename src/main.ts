@@ -1,5 +1,6 @@
 import REGL from 'regl'
 import { mat4, vec3, vec4 } from 'gl-matrix'
+import { gsap, Back, Quart } from 'gsap'
 
 import { cubeGeometry, sphereGeometry, coneGeometry, Geometry } from './geometry'
 import { createRegl, ReglContext } from './regl'
@@ -19,7 +20,6 @@ type MeshOptions = {
   scale?: Vector3
   color?: vec3
   opacity?: number
-  rotateY?: number
   geometry: Geometry
 }
 
@@ -38,12 +38,15 @@ interface MeshUniforms {
   uModelInv: mat4
 }
 
+const uAmbientColor: vec4 = [251 / 255, 207 / 255, 232 / 255, 0.65]
+const uLightColor: vec4 = [254 / 255, 243 / 255, 199 / 255, 0.9]
+const uLightPos: vec3 = [5, 6, 3]
+
 class Mesh implements Required<Omit<MeshOptions, 'geometry'>> {
   position: Vector3
   rotation: Vector3
   scale: Vector3
   color: vec3
-  rotateY: number
   opacity: number
 
   vertices: vec3[]
@@ -56,11 +59,25 @@ class Mesh implements Required<Omit<MeshOptions, 'geometry'>> {
     this.scale = options.scale || { x: 1, y: 1, z: 1 }
     this.color = options.color || [1, 0, 1]
     this.opacity = options.opacity || 1
-    this.rotateY = options.rotateY || 0
 
     this.vertices = options.geometry.vertices
     this.normals = options.geometry.normals
     this.indices = options.geometry.indices
+  }
+
+  generateModelMatrix(): mat4 {
+    let result = mat4.identity(mat4.create())
+    result = mat4.translate(result, result, [this.position.x, this.position.y, this.position.z])
+    result = mat4.rotateZ(result, result, this.rotation.z)
+    result = mat4.rotateX(result, result, this.rotation.x)
+    result = mat4.rotateY(result, result, this.rotation.y)
+    result = mat4.scale(result, result, [this.scale.x, this.scale.y, this.scale.z])
+
+    return result
+  }
+
+  generateMeshColor(): vec4 {
+    return [this.color[0], this.color[1], this.color[2], this.opacity]
   }
 
   draw = regl<MeshUniforms, {}, {}, MeshContext, ReglContext>({
@@ -113,38 +130,25 @@ class Mesh implements Required<Omit<MeshOptions, 'geometry'>> {
       color: clearColor,
     },
     context: {
-      uModel: ({ tick }: ReglContext) => {
-        const t = this.rotateY * tick
-
-        let result = mat4.identity(mat4.create())
-        result = mat4.translate(result, result, [this.position.x, this.position.y, this.position.z])
-
-        result = mat4.rotateZ(result, result, this.rotation.z)
-        result = mat4.rotateY(result, result, this.rotation.y + t)
-        result = mat4.rotateX(result, result, this.rotation.x)
-
-        result = mat4.scale(result, result, [this.scale.x, this.scale.y, this.scale.z])
-
-        return result
-      },
+      uModel: this.generateModelMatrix,
     },
     uniforms: {
-      uColor: () => [this.color[0], this.color[1], this.color[2], this.opacity],
-      uAmbientColor: [251 / 255, 207 / 255, 232 / 255, 0.65],
-      uLightColor: [254 / 255, 243 / 255, 199 / 255, 0.9],
-      uLightPos: [5, 6, 4],
-      uView: (context) => context.uView,
-      uProjection: (context) => context.uProjection,
-      uModel: (context) => context.uModel,
-      uModelInv: (context) => {
+      uColor: this.generateMeshColor,
+      uAmbientColor,
+      uLightColor,
+      uLightPos,
+      uView: regl.context<ReglContext, 'uView'>('uView'),
+      uProjection: regl.context<ReglContext, 'uProjection'>('uProjection'),
+      uModel: regl.context<any, 'uModel'>('uModel'),
+      uModelInv: function (context) {
         return mat4.transpose(mat4.create(), mat4.invert(mat4.create(), context.uModel))
       },
     },
     attributes: {
-      aPosition: () => this.vertices,
-      aNormal: () => this.normals,
+      aPosition: regl.this<Mesh, 'vertices'>('vertices'),
+      aNormal: regl.this<Mesh, 'normals'>('normals'),
     },
-    elements: () => this.indices,
+    elements: regl.this<Mesh, 'indices'>('indices'),
   })
 }
 
@@ -155,13 +159,13 @@ interface CameraProps {
 
 const setupCamera = regl<{}, {}, CameraProps, {}, ReglContext>({
   context: {
-    uProjection: (context: ReglContext) => {
+    uProjection: function (context: ReglContext) {
       return mat4.perspective(mat4.create(), Math.PI / 4, context.viewportWidth / context.viewportHeight, 0.1, 100.0)
     },
-    uView: (_: ReglContext, props: CameraProps) => {
+    uView: function (_: ReglContext, props: CameraProps) {
       return mat4.lookAt(mat4.create(), props.eye, props.target, [0, 1, 0])
     },
-    eye: (_: ReglContext, props: CameraProps) => {
+    eye: function (_: ReglContext, props: CameraProps) {
       return props.eye
     },
   },
@@ -169,18 +173,16 @@ const setupCamera = regl<{}, {}, CameraProps, {}, ReglContext>({
 
 const cone = new Mesh({
   position: { x: 0, y: 0, z: 0 },
-  // rotation: { x: 5.78583312002191, y: 2.025185852873059, z: 0.9885902894558617 },
+  rotation: { x: Math.PI / 7, y: 0, z: Math.PI / -6 },
   geometry: coneGeometry(0.8, 1.25, 6),
   color: [253 / 255, 230 / 255, 138 / 255],
-  rotateY: -0.001,
 })
 
 const cube = new Mesh({
   position: { x: 0, y: 0, z: 0 },
-  // rotation: { x: 1.9733855036580255, y: 0.28516335485506763, z: 3.797325849427788 },
+  rotation: { x: Math.PI / -6, y: 0, z: Math.PI / -2 },
   geometry: cubeGeometry(1),
   color: [21 / 255, 19 / 255, 20 / 255],
-  rotateY: 0.0006,
 })
 
 const sphere = new Mesh({
@@ -202,13 +204,28 @@ for (let index = 0; index < meshes.length; index++) {
   mesh.position = { x, y, z: index * 0.125 }
 }
 
-regl.frame(() => {
+const easeIn = gsap.timeline({ defaults: { duration: 1.2 } })
+const ease = Back.easeOut.config(1.75)
+
+easeIn.from(cone.position, { y: cone.position.y - 8, ease })
+easeIn.from(cone, { opacity: 0 }, '<')
+easeIn.from(cube.position, { y: cube.position.y - 8, ease }, '<+=0.25')
+easeIn.from(cube, { opacity: 0 }, '<')
+easeIn.from(sphere.position, { y: sphere.position.y - 8, ease }, '<+=0.25')
+easeIn.from(sphere, { opacity: 0 }, '<')
+
+gsap.ticker.add(function onReglFrame() {
+  regl.poll()
+
   regl.clear({
     color: clearColor,
     depth: 1,
   })
 
-  setupCamera({ eye: [0, 0.25, 10], target: [0, 0, 0] }, function (context) {
+  setupCamera({ eye: [0, 0.25, 10], target: [0, 0, 0] }, function onSetupCamera(context) {
+    cone.rotation.y = -((0.0012 * context.tick) % (Math.PI * 2))
+    cube.rotation.y = (0.0008 * context.tick) % (Math.PI * 2)
+
     meshes.forEach((mesh) =>
       mesh.draw({
         uView: context.uView,
@@ -216,4 +233,6 @@ regl.frame(() => {
       })
     )
   })
+
+  regl._gl.flush()
 })

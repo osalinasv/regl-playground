@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "gl-matrix": "^3.4.3",
+    "gsap": "^3.11.5",
     "regl": "^2.1.0"
   }
 }

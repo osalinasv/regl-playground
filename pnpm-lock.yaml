@@ -4,6 +4,9 @@ dependencies:
   gl-matrix:
     specifier: ^3.4.3
     version: 3.4.3
+  gsap:
+    specifier: ^3.11.5
+    version: 3.11.5
   regl:
     specifier: ^2.1.0
     version: 2.1.0
@@ -256,6 +259,10 @@ packages:
 
   /gl-matrix@3.4.3:
     resolution: {integrity: sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA==}
+    dev: false
+
+  /gsap@3.11.5:
+    resolution: {integrity: sha512-Q89nKCLgoX5xUjznh9LcaIUkz54k1voNucT1Rpf9SJNFIQznBwFqt5qUUQbeVInFyN/n18OUJkpeI6CNEDt74w==}
     dev: false
 
   /nanoid@3.3.6:
