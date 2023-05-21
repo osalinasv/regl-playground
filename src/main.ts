@@ -1,12 +1,36 @@
-import REGL from 'regl'
+import type REGL from 'regl'
 import { mat4, vec3, vec4 } from 'gl-matrix'
-import { gsap, Back, Quart } from 'gsap'
+import { gsap, Back } from 'gsap'
 
 import { cubeGeometry, sphereGeometry, coneGeometry, Geometry } from './geometry'
 import { createRegl, ReglContext } from './regl'
 
-const { regl } = createRegl('#regl-canvas')
 const clearColor: REGL.Vec4 = [0, 0, 0, 0]
+
+const canvas = document.querySelector<HTMLCanvasElement>('#regl-canvas')!
+const { regl } = createRegl(canvas)
+
+const observer = new ResizeObserver(resizeTheCanvasToDisplaySize)
+observer.observe(canvas)
+
+function resizeTheCanvasToDisplaySize(entries: ResizeObserverEntry[]) {
+  const entry = entries[0]
+
+  let width = canvas.width
+  let height = canvas.height
+
+  if (entry.devicePixelContentBoxSize) {
+    width = entry.devicePixelContentBoxSize[0].inlineSize
+    height = entry.devicePixelContentBoxSize[0].blockSize
+  } else if (entry.contentBoxSize) {
+    // fallback for Safari that will not always be correct
+    width = Math.round(entry.contentBoxSize[0].inlineSize * devicePixelRatio)
+    height = Math.round(entry.contentBoxSize[0].blockSize * devicePixelRatio)
+  }
+
+  canvas.width = width
+  canvas.height = height
+}
 
 type Vector3 = {
   x: number
@@ -46,12 +70,13 @@ class Mesh implements Required<Omit<MeshOptions, 'geometry'>> {
   position: Vector3
   rotation: Vector3
   scale: Vector3
+
   color: vec3
   opacity: number
 
-  vertices: vec3[]
-  normals: vec3[]
-  indices: vec3[]
+  vertices: REGL.Buffer
+  normals: REGL.Buffer
+  indices: REGL.Elements
 
   constructor(options: MeshOptions) {
     this.position = options.position || { x: 0, y: 0, z: 0 }
@@ -60,9 +85,17 @@ class Mesh implements Required<Omit<MeshOptions, 'geometry'>> {
     this.color = options.color || [1, 0, 1]
     this.opacity = options.opacity || 1
 
-    this.vertices = options.geometry.vertices
-    this.normals = options.geometry.normals
-    this.indices = options.geometry.indices
+    this.vertices = regl.buffer({
+      data: options.geometry.vertices as number[][],
+      usage: 'static',
+    })
+
+    this.normals = regl.buffer({
+      data: options.geometry.normals as number[][],
+      usage: 'static',
+    })
+
+    this.indices = regl.elements(options.geometry.indices)
   }
 
   generateModelMatrix(): mat4 {
@@ -186,22 +219,20 @@ const cube = new Mesh({
 })
 
 const sphere = new Mesh({
-  position: { x: 0, y: 0, z: 0 },
-  geometry: sphereGeometry(1.33),
+  position: { x: 0, y: 0, z: 0.8 },
+  geometry: sphereGeometry(1.35, 64, 32),
   color: [226 / 255, 232 / 255, 240 / 255],
 })
 
 const meshes = [cone, cube, sphere]
-const radius = 1.65
+const radius = 1.625
 
 for (let index = 0; index < meshes.length; index++) {
   const mesh = meshes[index]
 
   const angle = (2 * Math.PI * index) / meshes.length
-  const x = radius * Math.cos(angle)
-  const y = radius * Math.sin(angle)
-
-  mesh.position = { x, y, z: index * 0.125 }
+  mesh.position.x = radius * Math.cos(angle)
+  mesh.position.y = radius * Math.sin(angle)
 }
 
 const easeIn = gsap.timeline({ defaults: { duration: 1.2 } })
