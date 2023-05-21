@@ -18,5 +18,5 @@ export function createRegl(canvas: HTMLCanvasElement) {
     gl: context,
   })
 
-  return { regl, canvas }
+  return { regl, canvas, context }
 }
